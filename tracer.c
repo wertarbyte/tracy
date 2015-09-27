@@ -123,6 +123,19 @@ got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	genResponse(&ip->ip_dst, &ip->ip_src, ip->ip_hl, (uint8_t *)ip, header->caplen - SIZE_ETHERNET);
 }
 
+uint8_t parse_net(char *str, struct in6_addr *addr, uint8_t *len) {
+	char *l = strrchr(str, '/');
+	if (!l) return 0;
+	if (sscanf(l, "/%hu", len) != 1 || *len > 128) {
+		return 0;
+	}
+	*l = '\0';
+	if (inet_pton(AF_INET6, str, addr) != 1) {
+		return 0;
+	}
+	return 1;
+}
+
 int main(int argc, char **argv)
 {
 
@@ -140,20 +153,15 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (argc == 4) {
+	if (argc == 3) {
 		dev = argv[1];
 	} else {
-		fprintf(stderr, "Please specify device, network address and prefix length\n\n");
+		fprintf(stderr, "Please specify device and network address\n\n");
 		exit(EXIT_FAILURE);
 	}
 
-	if (inet_pton(AF_INET6, argv[2], &sink_addr) != 1) {
-		fprintf(stderr, "Couldn't parse target address: %s\n", argv[2]);
-		exit(EXIT_FAILURE);
-	}
-
-	if (sscanf(argv[3], "%hu", &sink_addr_len) != 1 || sink_addr_len > 128) {
-		fprintf(stderr, "Invalid network size: %s\n", argv[3]);
+	if (parse_net(argv[2], &sink_addr, &sink_addr_len) != 1) {
+		fprintf(stderr, "Couldn't parse network: %s\n", argv[2]);
 		exit(EXIT_FAILURE);
 	}
 
