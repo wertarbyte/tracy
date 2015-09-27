@@ -39,14 +39,16 @@ struct sniff_ip6 {
 
 #define IP_V(ip) (ntohl((ip)->ip_vtcfl) >> 28)
 
-struct in6_addr target_addr;
+struct in6_addr *sink_addr;
+int sink_addr_n = 0;
+
 libnet_t *net_h;
 
-void genResponse(const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, size_t len) {
+void genResponse(const struct in6_addr *target_addr, const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, size_t len) {
 	struct in6_addr router_addr;
 	char router[INET6_ADDRSTRLEN];
 	char dst[INET6_ADDRSTRLEN];
-	memcpy(&router_addr, &target_addr, sizeof(target_addr));
+	memcpy(&router_addr, target_addr, sizeof(router_addr));
 	((uint8_t*)&router_addr)[15] = hl;
 	inet_ntop(AF_INET6, &router_addr, router, INET6_ADDRSTRLEN);
 	inet_ntop(AF_INET6, client_addr, dst, INET6_ADDRSTRLEN);
@@ -85,6 +87,16 @@ void genResponse(const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, 
 	libnet_clear_packet(net_h);
 }
 
+uint8_t for_target(const struct in6_addr *dst) {
+	int i;
+	for (i=0; i < sink_addr_n; i++) {
+		if (memcmp(dst, &sink_addr[i], sizeof(*sink_addr)) == 0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 void
 got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 {
@@ -104,18 +116,17 @@ got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 		return;
 	}
 
-	/* is it for the target? */
-	if (memcmp(&ip->ip_dst, &target_addr, sizeof(target_addr)) != 0) {
+	/* is it for one of the targets? */
+	if (! for_target(&ip->ip_dst)) {
 		return;
 	}
-	genResponse(&ip->ip_src, ip->ip_hl, (uint8_t *)ip, header->caplen - SIZE_ETHERNET);
+	genResponse(&ip->ip_dst, &ip->ip_src, ip->ip_hl, (uint8_t *)ip, header->caplen - SIZE_ETHERNET);
 }
 
 int main(int argc, char **argv)
 {
 
 	char *dev = NULL;
-	char *target_str = NULL;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	pcap_t *handle;
 
@@ -130,22 +141,35 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (argc == 3) {
+	if (argc > 1) {
 		dev = argv[1];
-		target_str = argv[2];
+		argc--;
+		argc--;
+		argv++;
+		argv++;
 	} else {
-		fprintf(stderr, "Please specify device and target address\n\n");
+		fprintf(stderr, "Please specify device and target address(es)\n\n");
 		exit(EXIT_FAILURE);
 	}
 
-	if (inet_pton(AF_INET6, target_str, &target_addr) != 1) {
-		fprintf(stderr, "Couldn't parse target address: %s\n", target_str);
-		exit(EXIT_FAILURE);
+	sink_addr = malloc(argc*sizeof(*sink_addr));
+	while (argc) {
+		if (inet_pton(AF_INET6, argv[0], &sink_addr[sink_addr_n++]) != 1) {
+			fprintf(stderr, "Couldn't parse target address: %s\n", argv[0]);
+			exit(EXIT_FAILURE);
+		}
+		argv++;
+		argc--;
 	}
 	
 	/* print capture info */
 	printf("Device: %s\n", dev);
-	printf("Target: %s\n", target_str);
+	int i;
+	for (i=0; i<sink_addr_n; i++) {
+		char str[INET6_ADDRSTRLEN];
+		inet_ntop(AF_INET6, &sink_addr[i], str, INET6_ADDRSTRLEN);
+		printf("target: %s\n", str);
+	}
 	printf("Filter expression: %s\n", filter_exp);
 
 	/* open capture device */
