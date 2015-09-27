@@ -181,7 +181,7 @@ int main(int argc, char **argv)
 	printf("Filter expression: %s\n", filter_exp);
 
 	/* open capture device */
-	handle = pcap_open_live(dev, SNAP_LEN, 1, 1000, errbuf);
+	handle = pcap_open_live(dev, SNAP_LEN, 1, 10, errbuf);
 	if (handle == NULL) {
 		fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
 		exit(EXIT_FAILURE);
