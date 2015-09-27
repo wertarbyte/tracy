@@ -9,14 +9,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <libnet.h>
+#include <libnet/libnet-headers.h>
+#include <libnet/libnet-functions.h>
+
 /* default snap length (maximum bytes per packet to capture) */
 #define SNAP_LEN 1518
 
 /* ethernet headers are always exactly 14 bytes [1] */
 #define SIZE_ETHERNET 14
-
-/* Ethernet addresses are 6 bytes */
-#define ETHER_ADDR_LEN	6
 
 #define IPv6_ETHERTYPE 0x86DD
 
@@ -39,8 +40,9 @@ struct sniff_ip6 {
 #define IP_V(ip) (ntohl((ip)->ip_vtcfl) >> 28)
 
 struct in6_addr target_addr;
+libnet_t *net_h;
 
-void genResponse(const struct in6_addr *client_addr, uint8_t hl) {
+void genResponse(const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, size_t len) {
 	struct in6_addr router_addr;
 	char router[INET6_ADDRSTRLEN];
 	char dst[INET6_ADDRSTRLEN];
@@ -49,6 +51,36 @@ void genResponse(const struct in6_addr *client_addr, uint8_t hl) {
 	inet_ntop(AF_INET6, &router_addr, router, INET6_ADDRSTRLEN);
 	inet_ntop(AF_INET6, client_addr, dst, INET6_ADDRSTRLEN);
 	printf("Sending response to '%s' from '%s'\n", dst, router);
+
+	struct libnet_in6_addr dst_ip;
+	struct libnet_in6_addr src_ip;
+	dst_ip = libnet_name2addr6(net_h, dst, 0);
+	src_ip = libnet_name2addr6(net_h, router, 0);
+
+	libnet_ptag_t icmp, ip;
+	icmp = libnet_build_icmpv6_unreach(
+		ICMP6_DST_UNREACH,
+		ICMP6_DST_UNREACH_ADMIN,
+		0,
+		data,
+		len,
+		net_h,
+		0
+	       );
+	ip = libnet_build_ipv6(
+		0, 0,
+		LIBNET_IPV6_H + LIBNET_ICMPV6_H + len,
+		IPPROTO_ICMP6, 64,
+		src_ip,
+		dst_ip,
+		NULL,
+		0,
+		net_h,
+		0
+	       );
+	printf("libnet_write...\n");
+	libnet_write(net_h);
+	libnet_clear_packet(net_h);
 }
 
 void
@@ -74,7 +106,7 @@ got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	if (memcmp(&ip->ip_dst, &target_addr, sizeof(target_addr)) != 0) {
 		return;
 	}
-	genResponse(&ip->ip_src, ip->ip_hl);
+	genResponse(&ip->ip_src, ip->ip_hl, (uint8_t *)ip, header->len - sizeof(ethernet));
 }
 
 int main(int argc, char **argv)
@@ -88,6 +120,14 @@ int main(int argc, char **argv)
 	char filter_exp[] = "ip6";
 	struct bpf_program fp;
 
+	char errmsg[LIBNET_ERRBUF_SIZE];
+	net_h = libnet_init(LIBNET_RAW6, NULL, &errmsg[0]);
+
+	if (!net_h) {
+		fprintf(stderr, "Unable to initialize libnet: %s\n\n", errmsg);
+		exit(EXIT_FAILURE);
+	}
+
 	if (argc == 3) {
 		dev = argv[1];
 		target_str = argv[2];
@@ -100,8 +140,6 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Couldn't parse target address: %s\n", target_str);
 		exit(EXIT_FAILURE);
 	}
-
-	/* build capture filter */
 	
 	/* print capture info */
 	printf("Device: %s\n", dev);
