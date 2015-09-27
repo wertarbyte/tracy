@@ -47,12 +47,14 @@ libnet_t *net_h;
 void genResponse(const struct in6_addr *target_addr, const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, size_t len) {
 	struct in6_addr router_addr;
 	char router[INET6_ADDRSTRLEN];
+	char target[INET6_ADDRSTRLEN];
 	char dst[INET6_ADDRSTRLEN];
 	memcpy(&router_addr, target_addr, sizeof(router_addr));
 	((uint8_t*)&router_addr)[15] = hl;
 	inet_ntop(AF_INET6, &router_addr, router, INET6_ADDRSTRLEN);
+	inet_ntop(AF_INET6, target_addr, target, INET6_ADDRSTRLEN);
 	inet_ntop(AF_INET6, client_addr, dst, INET6_ADDRSTRLEN);
-	printf("Sending response to '%s' from '%s'\n", dst, router);
+	printf("Sending response to '%s' from '%s' (target: '%s')\n", dst, router, target);
 
 	struct libnet_in6_addr dst_ip;
 	struct libnet_in6_addr src_ip;
@@ -60,15 +62,28 @@ void genResponse(const struct in6_addr *target_addr, const struct in6_addr *clie
 	src_ip = libnet_name2addr6(net_h, router, 0);
 
 	libnet_ptag_t icmp, ip;
-	icmp = libnet_build_icmpv6_unreach(
-		0x3,
-		0x0,
-		0,
-		data,
-		len,
-		net_h,
-		0
-	       );
+	if (memcmp(&router_addr, target_addr, sizeof(*target_addr)) == 0) {
+		/* target reached */
+		icmp = libnet_build_icmpv6_unreach(
+			0x1,
+			0x1,
+			0,
+			data,
+			len,
+			net_h,
+			0
+		       );
+	} else {
+		icmp = libnet_build_icmpv6_unreach(
+			0x3,
+			0x0,
+			0,
+			data,
+			len,
+			net_h,
+			0
+		       );
+	}
 
 	size_t ip_payload_len = LIBNET_ICMPV6_H + len;
 	ip = libnet_build_ipv6(
