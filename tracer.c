@@ -67,9 +67,11 @@ void genResponse(const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, 
 		net_h,
 		0
 	       );
+
+	size_t ip_payload_len = LIBNET_ICMPV6_H + len;
 	ip = libnet_build_ipv6(
 		0, 0,
-		LIBNET_IPV6_H + LIBNET_ICMPV6_H + len,
+		ip_payload_len,
 		IPPROTO_ICMP6, 64,
 		src_ip,
 		dst_ip,
@@ -106,7 +108,7 @@ got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	if (memcmp(&ip->ip_dst, &target_addr, sizeof(target_addr)) != 0) {
 		return;
 	}
-	genResponse(&ip->ip_src, ip->ip_hl, (uint8_t *)ip, header->len - sizeof(ethernet));
+	genResponse(&ip->ip_src, ip->ip_hl, (uint8_t *)ip, header->caplen - SIZE_ETHERNET);
 }
 
 int main(int argc, char **argv)
