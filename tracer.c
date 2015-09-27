@@ -59,8 +59,8 @@ void genResponse(const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, 
 
 	libnet_ptag_t icmp, ip;
 	icmp = libnet_build_icmpv6_unreach(
-		ICMP6_DST_UNREACH,
-		ICMP6_DST_UNREACH_ADMIN,
+		0x3,
+		0x0,
 		0,
 		data,
 		len,
