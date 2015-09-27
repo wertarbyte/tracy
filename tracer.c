@@ -39,8 +39,8 @@ struct sniff_ip6 {
 
 #define IP_V(ip) (ntohl((ip)->ip_vtcfl) >> 28)
 
-struct in6_addr *sink_addr;
-int sink_addr_n = 0;
+struct in6_addr sink_addr;
+uint8_t sink_addr_len = 0;
 
 libnet_t *net_h;
 
@@ -101,16 +101,6 @@ void genResponse(const struct in6_addr *target_addr, const struct in6_addr *clie
 	libnet_clear_packet(net_h);
 }
 
-uint8_t for_target(const struct in6_addr *dst) {
-	int i;
-	for (i=0; i < sink_addr_n; i++) {
-		if (memcmp(dst, &sink_addr[i], sizeof(*sink_addr)) == 0) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
 void
 got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 {
@@ -130,10 +120,6 @@ got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 		return;
 	}
 
-	/* is it for one of the targets? */
-	if (! for_target(&ip->ip_dst)) {
-		return;
-	}
 	genResponse(&ip->ip_dst, &ip->ip_src, ip->ip_hl, (uint8_t *)ip, header->caplen - SIZE_ETHERNET);
 }
 
@@ -144,7 +130,6 @@ int main(int argc, char **argv)
 	char errbuf[PCAP_ERRBUF_SIZE];
 	pcap_t *handle;
 
-	char filter_exp[] = "ip6";
 	struct bpf_program fp;
 
 	char errmsg[LIBNET_ERRBUF_SIZE];
@@ -155,35 +140,36 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (argc > 1) {
+	if (argc == 4) {
 		dev = argv[1];
-		argc--;
-		argc--;
-		argv++;
-		argv++;
 	} else {
-		fprintf(stderr, "Please specify device and target address(es)\n\n");
+		fprintf(stderr, "Please specify device, network address and prefix length\n\n");
 		exit(EXIT_FAILURE);
 	}
 
-	sink_addr = malloc(argc*sizeof(*sink_addr));
-	while (argc) {
-		if (inet_pton(AF_INET6, argv[0], &sink_addr[sink_addr_n++]) != 1) {
-			fprintf(stderr, "Couldn't parse target address: %s\n", argv[0]);
-			exit(EXIT_FAILURE);
-		}
-		argv++;
-		argc--;
+	if (inet_pton(AF_INET6, argv[2], &sink_addr) != 1) {
+		fprintf(stderr, "Couldn't parse target address: %s\n", argv[2]);
+		exit(EXIT_FAILURE);
 	}
+
+	if (sscanf(argv[3], "%hu", &sink_addr_len) != 1 || sink_addr_len > 128) {
+		fprintf(stderr, "Invalid network size: %s\n", argv[3]);
+		exit(EXIT_FAILURE);
+	}
+
+	/* build filter expression */
+	/* ip6 and dst net NETWORK/LENGTH */
+	char filter_exp[4+4+4+4+INET6_ADDRSTRLEN+1+3+1];
+	char buf[INET6_ADDRSTRLEN];
+	inet_ntop(AF_INET6, &sink_addr, &buf[0], INET6_ADDRSTRLEN);
+	filter_exp[0] = 0;
+	strcat(&filter_exp[0], "ip6 and dst net ");
+	strcat(&filter_exp[0], &buf[0]);
+	sprintf(&buf[0], "/%hu", sink_addr_len);
+	strcat(&filter_exp[0], &buf[0]);
 	
 	/* print capture info */
 	printf("Device: %s\n", dev);
-	int i;
-	for (i=0; i<sink_addr_n; i++) {
-		char str[INET6_ADDRSTRLEN];
-		inet_ntop(AF_INET6, &sink_addr[i], str, INET6_ADDRSTRLEN);
-		printf("target: %s\n", str);
-	}
 	printf("Filter expression: %s\n", filter_exp);
 
 	/* open capture device */
