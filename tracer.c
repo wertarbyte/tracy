@@ -82,7 +82,6 @@ void genResponse(const struct in6_addr *target_addr, const struct in6_addr *clie
 		net_h,
 		0
 	       );
-	printf("libnet_write...\n");
 	libnet_write(net_h);
 	libnet_clear_packet(net_h);
 }
