@@ -44,6 +44,23 @@ uint8_t sink_addr_len = 0;
 
 libnet_t *net_h;
 
+void drop_root(void) {
+	/* use nobody */
+	int userid = 65534;
+	int groupid = 65534;
+	if (getuid() == 0) {
+		/* process is running as root, drop privileges */
+		if (setgid(groupid) != 0) {
+			fprintf(stderr, "setgid: Unable to drop group privileges: %s", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		if (setuid(userid) != 0) {
+			fprintf(stderr, "setuid: Unable to drop user privileges: %s", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+	}
+}
+
 void genResponse(const struct in6_addr *target_addr, const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, size_t len) {
 	struct in6_addr router_addr;
 	char router[INET6_ADDRSTRLEN];
@@ -182,6 +199,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
 		exit(EXIT_FAILURE);
 	}
+
+	drop_root();
 
 	/* make sure we're capturing on an Ethernet device [2] */
 	if (pcap_datalink(handle) != DLT_EN10MB) {
