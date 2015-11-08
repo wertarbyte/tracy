@@ -179,15 +179,32 @@ int main(int argc, char **argv)
 	}
 
 	/* build filter expression */
-	/* ip6 and dst net NETWORK/LENGTH */
-	char filter_exp[4+4+4+4+INET6_ADDRSTRLEN+1+3+1];
-	char buf[INET6_ADDRSTRLEN];
-	inet_ntop(AF_INET6, &sink_addr, &buf[0], INET6_ADDRSTRLEN);
-	filter_exp[0] = 0;
+	/* ip6 and dst net NETWORK/LENGTH and not src net NETWORK/LENGTH */
+	size_t filter_str_len = 0;
+	filter_str_len += 4; // "ip6 "
+	filter_str_len += 4; // "and "
+	filter_str_len += 4; // "dst "
+	filter_str_len += 4; // "net "
+	filter_str_len += INET6_ADDRSTRLEN+1+3+1; // "NETWORK/LENGTH "
+	filter_str_len += 4; // "and "
+	filter_str_len += 4; // "not "
+	filter_str_len += 4; // "src "
+	filter_str_len += 4; // "net "
+	filter_str_len += INET6_ADDRSTRLEN+1+3; // "NETWORK/LENGTH"
+
+	char net_str[INET6_ADDRSTRLEN];
+	char pref_str[5];
+	inet_ntop(AF_INET6, &sink_addr, &net_str[0], INET6_ADDRSTRLEN);
+	sprintf(&pref_str[0], "/%hu", sink_addr_len);
+
+	char filter_exp[filter_str_len+1];
+	filter_exp[0] = '\0';
 	strcat(&filter_exp[0], "ip6 and dst net ");
-	strcat(&filter_exp[0], &buf[0]);
-	sprintf(&buf[0], "/%hu", sink_addr_len);
-	strcat(&filter_exp[0], &buf[0]);
+	strcat(&filter_exp[0], &net_str[0]);
+	strcat(&filter_exp[0], &pref_str[0]);
+	strcat(&filter_exp[0], " and not src net ");
+	strcat(&filter_exp[0], &net_str[0]);
+	strcat(&filter_exp[0], &pref_str[0]);
 	
 	/* print capture info */
 	printf("Device: %s\n", dev);
