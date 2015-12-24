@@ -82,40 +82,40 @@ void genResponse(const struct in6_addr *target_addr,
 	if (hl >= ((uint8_t*)&router_addr)[15]) {
 		/* target reached */
 		icmp = libnet_build_icmpv6_unreach(
-			0x1,
-			0x1,
-			0,
-			data,
-			len,
-			net_h,
-			0
-		       );
+		  0x1,
+		  0x1,
+		  0,
+		  data,
+		  len,
+		  net_h,
+		  0
+		);
 	} else {
 		/* synthesize router address */
 		((uint8_t*)&router_addr)[15] = hl;
 		icmp = libnet_build_icmpv6_unreach(
-			0x3,
-			0x0,
-			0,
-			data,
-			len,
-			net_h,
-			0
-		       );
+		  0x3,
+		  0x0,
+		  0,
+		  data,
+		  len,
+		  net_h,
+		  0
+		);
 	}
 
 	size_t ip_payload_len = LIBNET_ICMPV6_H + len;
 	ip = libnet_build_ipv6(
-		0, 0,
-		ip_payload_len,
-		IPPROTO_ICMP6, 64,
-		*(struct libnet_in6_addr*)&router_addr,
-		*(struct libnet_in6_addr*) client_addr,
-		NULL,
-		0,
-		net_h,
-		0
-	       );
+	  0, 0,
+	  ip_payload_len,
+	  IPPROTO_ICMP6, 64,
+	  *(struct libnet_in6_addr*)&router_addr,
+	  *(struct libnet_in6_addr*) client_addr,
+	  NULL,
+	  0,
+	  net_h,
+	  0
+	);
 	inet_ntop(AF_INET6, &router_addr, router, INET6_ADDRSTRLEN);
 	inet_ntop(AF_INET6, target_addr, target, INET6_ADDRSTRLEN);
 	inet_ntop(AF_INET6, client_addr, dst, INET6_ADDRSTRLEN);
@@ -124,9 +124,7 @@ void genResponse(const struct in6_addr *target_addr,
 	libnet_clear_packet(net_h);
 }
 
-void
-got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
-{
+void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
 	const struct sniff_ethernet *ethernet;
 	const struct sniff_ip6 *ip;
 
@@ -159,8 +157,7 @@ uint8_t parse_net(char *str, struct in6_addr *addr, uint8_t *len) {
 	return 1;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
 
 	char *dev = NULL;
 	char errbuf[PCAP_ERRBUF_SIZE];
