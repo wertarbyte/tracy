@@ -67,7 +67,11 @@ void drop_root(void) {
 	}
 }
 
-void genResponse(const struct in6_addr *target_addr, const struct in6_addr *client_addr, uint8_t hl, uint8_t *data, size_t len) {
+void genResponse(const struct in6_addr *target_addr,
+                 const struct in6_addr *client_addr,
+                 uint8_t hl,
+                 uint8_t *data,
+                 size_t len) {
 	struct in6_addr router_addr;
 	char router[INET6_ADDRSTRLEN];
 	char target[INET6_ADDRSTRLEN];
