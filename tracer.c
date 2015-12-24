@@ -159,22 +159,23 @@ int main(int argc, char **argv)
 	struct bpf_program fp;
 
 	char errmsg[LIBNET_ERRBUF_SIZE];
-	net_h = libnet_init(LIBNET_RAW6, NULL, &errmsg[0]);
-
-	if (!net_h) {
-		fprintf(stderr, "Unable to initialize libnet: %s\n\n", errmsg);
-		exit(EXIT_FAILURE);
-	}
-
 	if (argc == 3) {
 		dev = argv[1];
 	} else {
-		fprintf(stderr, "Please specify device and network address\n\n");
+		fprintf(stderr, "Please specify device and network address, e.g.\n");
+		fprintf(stderr, "  tracer eth0 cafe:beef:babe::/64\n");
 		exit(EXIT_FAILURE);
 	}
 
 	if (parse_net(argv[2], &sink_addr, &sink_addr_len) != 1) {
 		fprintf(stderr, "Couldn't parse network: %s\n", argv[2]);
+		exit(EXIT_FAILURE);
+	}
+
+	net_h = libnet_init(LIBNET_RAW6, NULL, &errmsg[0]);
+
+	if (!net_h) {
+		fprintf(stderr, "Unable to initialize libnet: %s\n\n", errmsg);
 		exit(EXIT_FAILURE);
 	}
 
