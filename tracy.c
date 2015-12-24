@@ -163,7 +163,7 @@ int main(int argc, char **argv)
 		dev = argv[1];
 	} else {
 		fprintf(stderr, "Please specify device and network address, e.g.\n");
-		fprintf(stderr, "  tracer eth0 cafe:beef:babe::/64\n");
+		fprintf(stderr, "  tracy eth0 cafe:beef:babe::/64\n");
 		exit(EXIT_FAILURE);
 	}
 
