@@ -1,3 +1,9 @@
+/*
+ *  Tracy - generate simulated routing paths
+ *
+ *  by Stefan Tomanek <stefan@datenbruch.de>
+ */
+
 #include <pcap.h>
 #include <stdio.h>
 #include <string.h>
