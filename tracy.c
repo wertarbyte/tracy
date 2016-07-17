@@ -27,6 +27,8 @@
 
 #define IPv6_ETHERTYPE 0x86DD
 
+#define FILTER_TMPL "ip6 and dst net %s/%hu and not src net %s/%hu"
+
 /* Ethernet header */
 struct sniff_ethernet {
         u_char  ether_dhost[ETHER_ADDR_LEN];    /* destination host address */
@@ -46,7 +48,7 @@ struct sniff_ip6 {
 #define IP_V(ip) (ntohl((ip)->ip_vtcfl) >> 28)
 
 struct in6_addr sink_addr;
-uint8_t sink_addr_len = 0;
+short unsigned int sink_addr_len = 0;
 
 libnet_t *net_h;
 
@@ -78,10 +80,9 @@ void gen_response(const struct in6_addr *target_addr,
 	char dst[INET6_ADDRSTRLEN];
 	memcpy(&router_addr, target_addr, sizeof(router_addr));
 
-	libnet_ptag_t icmp, ip;
 	if (hl >= ((uint8_t*)&router_addr)[15]) {
 		/* target reached */
-		icmp = libnet_build_icmpv6_unreach(
+		libnet_build_icmpv6_unreach(
 		  0x1,
 		  0x1,
 		  0,
@@ -93,7 +94,7 @@ void gen_response(const struct in6_addr *target_addr,
 	} else {
 		/* synthesize router address */
 		((uint8_t*)&router_addr)[15] = hl;
-		icmp = libnet_build_icmpv6_unreach(
+		libnet_build_icmpv6_unreach(
 		  0x3,
 		  0x0,
 		  0,
@@ -105,7 +106,7 @@ void gen_response(const struct in6_addr *target_addr,
 	}
 
 	size_t ip_payload_len = LIBNET_ICMPV6_H + len;
-	ip = libnet_build_ipv6(
+	libnet_build_ipv6(
 	  0, 0,
 	  ip_payload_len,
 	  IPPROTO_ICMP6, 64,
@@ -128,8 +129,6 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 	const struct sniff_ethernet *ethernet;
 	const struct sniff_ip6 *ip;
 
-	int size_ip;
-
 	/* define ethernet header */
 	ethernet = (struct sniff_ethernet*)(packet);
 	if (ntohs(ethernet->ether_type) != IPv6_ETHERTYPE) {
@@ -146,7 +145,7 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 	             header->caplen - SIZE_ETHERNET);
 }
 
-uint8_t parse_net(char *str, struct in6_addr *addr, uint8_t *len) {
+uint8_t parse_net(char *str, struct in6_addr *addr, short unsigned int *len) {
 	char *l = strrchr(str, '/');
 	if (!l) return 0;
 	if (sscanf(l, "/%hu", len) != 1 || *len > 128) {
@@ -189,33 +188,22 @@ int main(int argc, char **argv) {
 	}
 
 	/* build filter expression */
-	/* ip6 and dst net NETWORK/LENGTH and not src net NETWORK/LENGTH */
-	size_t filter_str_len = 0;
-	filter_str_len += 4; // "ip6 "
-	filter_str_len += 4; // "and "
-	filter_str_len += 4; // "dst "
-	filter_str_len += 4; // "net "
-	filter_str_len += INET6_ADDRSTRLEN+1+3+1; // "NETWORK/LENGTH "
-	filter_str_len += 4; // "and "
-	filter_str_len += 4; // "not "
-	filter_str_len += 4; // "src "
-	filter_str_len += 4; // "net "
-	filter_str_len += INET6_ADDRSTRLEN+1+3; // "NETWORK/LENGTH"
+	// we ignore the space occupied by the placeholders
+	size_t filter_str_len = strlen(FILTER_TMPL)
+	                        + 2 * (INET6_ADDRSTRLEN + 3);
 
-	char net_str[INET6_ADDRSTRLEN];
-	char pref_str[5];
-	inet_ntop(AF_INET6, &sink_addr, &net_str[0], INET6_ADDRSTRLEN);
-	sprintf(&pref_str[0], "/%hu", sink_addr_len);
+	char net_str[INET6_ADDRSTRLEN + 1];
+	char filter_exp[filter_str_len + 1];
+	inet_ntop(AF_INET6, &sink_addr, net_str, INET6_ADDRSTRLEN);
+	int n = sprintf(filter_exp, FILTER_TMPL,
+	                net_str, sink_addr_len,
+	                net_str, sink_addr_len);
 
-	char filter_exp[filter_str_len+1];
-	filter_exp[0] = '\0';
-	strcat(&filter_exp[0], "ip6 and dst net ");
-	strcat(&filter_exp[0], &net_str[0]);
-	strcat(&filter_exp[0], &pref_str[0]);
-	strcat(&filter_exp[0], " and not src net ");
-	strcat(&filter_exp[0], &net_str[0]);
-	strcat(&filter_exp[0], &pref_str[0]);
-	
+	if (n < 0 || n > filter_str_len) {
+		fprintf(stderr, "Error constructing pcap filter string.\n");
+		exit(EXIT_FAILURE);
+	}
+
 	/* print capture info */
 	printf("Device: %s\n", dev);
 	printf("Filter expression: %s\n", filter_exp);
