@@ -67,8 +67,8 @@ void drop_root(void) {
 	}
 }
 
-void genResponse(const struct in6_addr *target_addr,
-                 const struct in6_addr *client_addr,
+void gen_response(const struct in6_addr *target_addr,
+                  const struct in6_addr *client_addr,
                  uint8_t hl,
                  uint8_t *data,
                  size_t len) {
@@ -141,7 +141,9 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 		return;
 	}
 
-	genResponse(&ip->ip_dst, &ip->ip_src, ip->ip_hl, (uint8_t *)ip, header->caplen - SIZE_ETHERNET);
+	gen_response(&ip->ip_dst, &ip->ip_src,
+	             ip->ip_hl, (uint8_t *)ip,
+	             header->caplen - SIZE_ETHERNET);
 }
 
 uint8_t parse_net(char *str, struct in6_addr *addr, uint8_t *len) {
