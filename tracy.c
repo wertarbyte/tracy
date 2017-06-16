@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include <ctype.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -126,7 +127,15 @@ void gen_response(const struct in6_addr *target_addr,
 	inet_ntop(AF_INET6, &router_addr, router, INET6_ADDRSTRLEN);
 	inet_ntop(AF_INET6, target_addr, target, INET6_ADDRSTRLEN);
 	inet_ntop(AF_INET6, client_addr, dst, INET6_ADDRSTRLEN);
-	printf("Sending response to '%s' from '%s' (target: '%s')\n", dst, router, target);
+
+	time_t now;
+	time(&now);
+	struct tm* tm_info = localtime(&now);
+#define TS_MAX 32
+	char ts[TS_MAX+1];
+	strftime(ts, TS_MAX, "%Y-%m-%d %H:%M:%S", tm_info);
+
+	printf("%s Sending response to '%s' from '%s' (target: '%s')\n", ts, dst, router, target);
 	libnet_write(net_h);
 	libnet_clear_packet(net_h);
 }
