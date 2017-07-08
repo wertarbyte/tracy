@@ -15,6 +15,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <getopt.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 #include <libnet.h>
 #include <libnet/libnet-headers.h>
@@ -62,20 +65,19 @@ short unsigned int sink_addr_len = 0;
 
 libnet_t *net_h;
 
-void drop_root(void) {
-	/* use nobody */
-	int userid = 65534;
-	int groupid = 65534;
-	if (getuid() == 0) {
-		/* process is running as root, drop privileges */
-		if (setgid(groupid) != 0) {
-			fprintf(stderr, "setgid: Unable to drop group privileges: %s", strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-		if (setuid(userid) != 0) {
-			fprintf(stderr, "setuid: Unable to drop user privileges: %s", strerror(errno));
-			exit(EXIT_FAILURE);
-		}
+void drop_root(char *user) {
+	struct passwd *pw = getpwnam(user);
+	if (!pw) {
+		fprintf(stderr, "Unable to lookup user '%s'\n", user);
+		exit(EXIT_FAILURE);
+	}
+	if (setgid(pw->pw_gid) != 0) {
+		fprintf(stderr, "setgid: Unable to drop group privileges: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if (setuid(pw->pw_uid) != 0) {
+		fprintf(stderr, "setuid: Unable to drop user privileges: %s", strerror(errno));
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -177,35 +179,46 @@ uint8_t parse_net(char *str, struct in6_addr *addr, short unsigned int *len) {
 }
 
 int main(int argc, char **argv) {
-
-	char *dev = NULL;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	pcap_t *handle;
+	struct bpf_program fp;
+	char errmsg[LIBNET_ERRBUF_SIZE];
+
+	char *dev = NULL;
+	char *subnet = NULL;
+	char *user = NULL;
+	// this is a placeholder that is always true
+	char *filter_extra = "1=1";
 	// we usually do not need promiscious mode
 	int use_promisc = 0;
 
-	struct bpf_program fp;
+	int c;
+	while ((c = getopt (argc, argv, "i:s:u:g:f:")) != -1) {
+		switch (c) {
+			case 'i':
+				dev = optarg;
+				break;
+			case 's':
+				subnet = optarg;
+				break;
+			case 'u':
+				user = optarg;
+				break;
+			case 'f':
+				filter_extra = optarg;
+				break;
+		}
+	}
 
-	char errmsg[LIBNET_ERRBUF_SIZE];
-	if (argc >= 3) {
-		dev = argv[1];
-	} else {
-		fprintf(stderr, "Please specify device and network address, e.g.\n");
-		fprintf(stderr, "  tracy eth0 cafe:beef:babe::/64\n");
+	if (!dev || !subnet) {
+		fprintf(stderr, "Please specify device and subnet address, e.g.\n");
+		fprintf(stderr, "  tracy -i eth0 -s cafe:beef:babe::/64\n");
 		exit(EXIT_FAILURE);
 	}
 
-	if (parse_net(argv[2], &sink_addr, &sink_addr_len) != 1) {
-		fprintf(stderr, "Couldn't parse network: %s\n", argv[2]);
+	if (parse_net(subnet, &sink_addr, &sink_addr_len) != 1) {
+		fprintf(stderr, "Couldn't parse network: %s\n", subnet);
 		exit(EXIT_FAILURE);
-	}
-
-	char *filter_extra = NULL;
-	if (argc == 4) {
-		filter_extra = argv[3];
-	} else {
-		// this is a placeholder that is always true
-		filter_extra = "1=1";
 	}
 
 	net_h = libnet_init(LIBNET_RAW6, NULL, &errmsg[0]);
@@ -249,7 +262,9 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	drop_root();
+	if (user) {
+		drop_root(user);
+	}
 
 	/* make sure we're capturing on an Ethernet device [2] */
 	if (pcap_datalink(handle) != DLT_EN10MB) {
