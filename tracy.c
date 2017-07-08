@@ -193,10 +193,13 @@ int main(int argc, char **argv) {
 	int use_promisc = 0;
 
 	int c;
-	while ((c = getopt (argc, argv, "i:s:u:g:f:")) != -1) {
+	while ((c = getopt (argc, argv, "i:ps:u:g:f:")) != -1) {
 		switch (c) {
 			case 'i':
 				dev = optarg;
+				break;
+			case 'p':
+				use_promisc = 1;
 				break;
 			case 's':
 				subnet = optarg;
