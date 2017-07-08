@@ -178,6 +178,8 @@ int main(int argc, char **argv) {
 	char *dev = NULL;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	pcap_t *handle;
+	// we usually do not need promiscious mode
+	int use_promisc = 0;
 
 	struct bpf_program fp;
 
@@ -224,7 +226,7 @@ int main(int argc, char **argv) {
 	printf("Filter expression: %s\n", filter_exp);
 
 	/* open capture device */
-	handle = pcap_open_live(dev, SNAP_LEN, 1, 10, errbuf);
+	handle = pcap_open_live(dev, SNAP_LEN, use_promisc, 10, errbuf);
 	if (handle == NULL) {
 		fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
 		exit(EXIT_FAILURE);
