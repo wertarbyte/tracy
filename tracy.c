@@ -31,10 +31,13 @@
 /* match IPv6 directed at (but not originating from) our network
  * of every protocol except icmp6 (but allow ICMP6 echo requests)
  */
-#define FILTER_TMPL "ip6 " \
-                    "and dst net %s/%hu " \
-                    "and not src net %s/%hu " \
-                    "and (not icmp6 or (icmp6 and ip6[40]=128))"
+#define FILTER_TMPL "(" \
+                     "ip6 " \
+                     "and dst net %s/%hu " \
+                     "and not src net %s/%hu " \
+                     "and (not icmp6 or (icmp6 and ip6[40]=128))" \
+                    ")" \
+                    " and (%s)"
 
 /* Ethernet header */
 struct sniff_ethernet {
@@ -184,7 +187,7 @@ int main(int argc, char **argv) {
 	struct bpf_program fp;
 
 	char errmsg[LIBNET_ERRBUF_SIZE];
-	if (argc == 3) {
+	if (argc >= 3) {
 		dev = argv[1];
 	} else {
 		fprintf(stderr, "Please specify device and network address, e.g.\n");
@@ -197,6 +200,14 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
+	char *filter_extra = NULL;
+	if (argc == 4) {
+		filter_extra = argv[3];
+	} else {
+		// this is a placeholder that is always true
+		filter_extra = "1=1";
+	}
+
 	net_h = libnet_init(LIBNET_RAW6, NULL, &errmsg[0]);
 
 	if (!net_h) {
@@ -207,14 +218,20 @@ int main(int argc, char **argv) {
 	/* build filter expression */
 	// we ignore the space occupied by the placeholders
 	size_t filter_str_len = strlen(FILTER_TMPL)
-	                        + 2 * (INET6_ADDRSTRLEN + 3);
+	                        + 2 * (INET6_ADDRSTRLEN + 3)
+	                        + strlen(filter_extra);
 
 	char net_str[INET6_ADDRSTRLEN + 1];
-	char filter_exp[filter_str_len + 1];
 	inet_ntop(AF_INET6, &sink_addr, net_str, INET6_ADDRSTRLEN);
+	char *filter_exp = malloc(filter_str_len);
+	if (!filter_exp) {
+		fprintf(stderr, "Allocating memory for filter expression: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	int n = sprintf(filter_exp, FILTER_TMPL,
 	                net_str, sink_addr_len,
-	                net_str, sink_addr_len);
+	                net_str, sink_addr_len,
+	                filter_extra);
 
 	if (n < 0 || n > filter_str_len) {
 		fprintf(stderr, "Error constructing pcap filter string.\n");
