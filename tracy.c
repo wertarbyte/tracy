@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
 	struct bpf_program fp;
 	char errmsg[LIBNET_ERRBUF_SIZE];
 
-	char *dev = NULL;
+	char *dev = "any";
 	char *subnet = NULL;
 	char *user = NULL;
 	// this is a placeholder that is always true
@@ -225,8 +225,8 @@ int main(int argc, char **argv) {
 	}
 
 	if (!dev || !subnet) {
-		fprintf(stderr, "Please specify device and subnet address, e.g.\n");
-		fprintf(stderr, "  tracy -i eth0 -s cafe:beef:babe::/64\n");
+		fprintf(stderr, "Please specify subnet address, e.g.\n");
+		fprintf(stderr, "  tracy -s cafe:beef:babe::/64\n");
 		exit(EXIT_FAILURE);
 	}
 
