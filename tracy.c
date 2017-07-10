@@ -4,7 +4,6 @@
  *  by Stefan Tomanek <stefan@datenbruch.de>
  */
 
-#include <pcap.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -19,15 +18,15 @@
 #include <sys/types.h>
 #include <pwd.h>
 
+#include <pcap.h>
+#include <pcap/sll.h>
+
 #include <libnet.h>
 #include <libnet/libnet-headers.h>
 #include <libnet/libnet-functions.h>
 
 /* default snap length (maximum bytes per packet to capture) */
 #define SNAP_LEN 1518
-
-/* ethernet headers are always exactly 14 bytes [1] */
-#define SIZE_ETHERNET 14
 
 #define IPv6_ETHERTYPE 0x86DD
 
@@ -64,6 +63,8 @@ struct in6_addr sink_addr;
 short unsigned int sink_addr_len = 0;
 
 libnet_t *net_h;
+
+int link_type;
 
 void drop_root(char *user) {
 	struct passwd *pw = getpwnam(user);
@@ -146,23 +147,33 @@ void gen_response(const struct in6_addr *target_addr,
 }
 
 void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
-	const struct sniff_ethernet *ethernet;
 	const struct sniff_ip6 *ip;
+	int ip_size = 0;
 
 	/* define ethernet header */
-	ethernet = (struct sniff_ethernet*)(packet);
-	if (ntohs(ethernet->ether_type) != IPv6_ETHERTYPE) {
-		return;
+	if (link_type == DLT_EN10MB) {
+		struct sniff_ethernet *ll = (struct sniff_ethernet*)(packet);
+		if (ntohs(ll->ether_type) != IPv6_ETHERTYPE) {
+			return;
+		}
+		ip = (struct sniff_ip6*)(packet + sizeof(struct sniff_ethernet));
+		ip_size = header->caplen - sizeof(struct sniff_ethernet);
+	} else if (link_type == DLT_LINUX_SLL) {
+		struct sll_header *ll = (struct sll_header*)(packet);
+		if (ntohs(ll->sll_protocol) != IPv6_ETHERTYPE) {
+			return;
+		}
+		ip = (struct sniff_ip6*)(packet + SLL_HDR_LEN);
+		ip_size = header->caplen - SLL_HDR_LEN;
 	}
 	
-	ip = (struct sniff_ip6*)(packet + SIZE_ETHERNET);
-	if (IP_V(ip) != 6) {
+	if (ip_size < 40 || IP_V(ip) != 6) {
 		return;
 	}
 
 	gen_response(&ip->ip_dst, &ip->ip_src,
 	             ip->ip_hl, (uint8_t *)ip,
-	             header->caplen - SIZE_ETHERNET);
+	             ip_size);
 }
 
 uint8_t parse_net(char *str, struct in6_addr *addr, short unsigned int *len) {
@@ -269,9 +280,10 @@ int main(int argc, char **argv) {
 		drop_root(user);
 	}
 
-	/* make sure we're capturing on an Ethernet device [2] */
-	if (pcap_datalink(handle) != DLT_EN10MB) {
-		fprintf(stderr, "%s is not an Ethernet\n", dev);
+	/* make sure we're capturing on an usable device */
+	link_type = pcap_datalink(handle);
+	if (link_type != DLT_EN10MB && link_type != DLT_LINUX_SLL) {
+		fprintf(stderr, "%s is not using a usable capture format\n", dev);
 		exit(EXIT_FAILURE);
 	}
 
