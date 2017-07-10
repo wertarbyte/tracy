@@ -18,6 +18,8 @@
 #include <sys/types.h>
 #include <pwd.h>
 
+#include <linux/if_ether.h>
+
 #include <pcap.h>
 #include <pcap/sll.h>
 
@@ -27,8 +29,6 @@
 
 /* default snap length (maximum bytes per packet to capture) */
 #define SNAP_LEN 1518
-
-#define IPv6_ETHERTYPE 0x86DD
 
 /* match IPv6 directed at (but not originating from) our network
  * of every protocol except icmp6 (but allow ICMP6 echo requests)
@@ -149,26 +149,27 @@ void gen_response(const struct in6_addr *target_addr,
 
 void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
 	const struct sniff_ip6 *ip;
+	u_short proto = 0;
+	size_t ip_offset = 0;
 	int ip_size = 0;
 
-	/* define ethernet header */
-	if (link_type == DLT_EN10MB) {
-		struct sniff_ethernet *ll = (struct sniff_ethernet*)(packet);
-		if (ntohs(ll->ether_type) != IPv6_ETHERTYPE) {
+	/* find and check IP header */
+	switch(link_type) {
+		case DLT_EN10MB:
+			proto = ((struct sniff_ethernet*)packet)->ether_type;
+			ip_offset = sizeof(struct sniff_ethernet);
+			break;
+		case DLT_LINUX_SLL:
+			proto = ((struct sll_header*)packet)->sll_protocol;
+			ip_offset = sizeof(struct sll_header);
+			break;
+		default:
 			return;
-		}
-		ip = (struct sniff_ip6*)(packet + sizeof(struct sniff_ethernet));
-		ip_size = header->caplen - sizeof(struct sniff_ethernet);
-	} else if (link_type == DLT_LINUX_SLL) {
-		struct sll_header *ll = (struct sll_header*)(packet);
-		if (ntohs(ll->sll_protocol) != IPv6_ETHERTYPE) {
-			return;
-		}
-		ip = (struct sniff_ip6*)(packet + SLL_HDR_LEN);
-		ip_size = header->caplen - SLL_HDR_LEN;
 	}
+	ip = (struct sniff_ip6*)(packet + ip_offset);
+	ip_size = header->caplen - ip_offset;
 	
-	if (ip_size < 40 || IP_V(ip) != 6) {
+	if (ntohs(proto) != ETH_P_IPV6 || ip_size < 40 || IP_V(ip) != 6) {
 		return;
 	}
 
