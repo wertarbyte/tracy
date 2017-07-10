@@ -204,9 +204,10 @@ int main(int argc, char **argv) {
 	char *filter_extra = "1=1";
 	// we usually do not need promiscious mode
 	int use_promisc = 0;
+	int help = 0;
 
 	int c;
-	while ((c = getopt (argc, argv, "i:ps:u:g:f:")) != -1) {
+	while ((c = getopt (argc, argv, "i:ps:u:g:f:h")) != -1) {
 		switch (c) {
 			case 'i':
 				dev = optarg;
@@ -223,12 +224,23 @@ int main(int argc, char **argv) {
 			case 'f':
 				filter_extra = optarg;
 				break;
+			case 'h':
+			default:
+				help = 1;
+				break;
 		}
 	}
 
-	if (!dev || !subnet) {
-		fprintf(stderr, "Please specify subnet address, e.g.\n");
-		fprintf(stderr, "  tracy -s cafe:beef:babe::/64\n");
+	if (help || !subnet) {
+		fprintf(stderr, "tracy, the traceroute simulator\n\n");
+		fprintf(stderr, "Please specify at least the subnet address, e.g.\n");
+		fprintf(stderr, "  tracy -s cafe:beef:babe::/64 -u nobody\n\n");
+		fprintf(stderr, " Arguments:\n");
+		fprintf(stderr, "  -s <subnet> IPv6 subnet to serve requests from (required)\n");
+		fprintf(stderr, "  -i <iface>  Interface to listen on (default: any)\n");
+		fprintf(stderr, "  -p          Use promiscious mode to capture packets\n");
+		fprintf(stderr, "  -u <user>   User account to use after dropping root priviledges\n");
+		fprintf(stderr, "  -f <pcap>   Additional pcap filter expression\n");
 		exit(EXIT_FAILURE);
 	}
 
