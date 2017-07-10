@@ -34,7 +34,8 @@
  * of every protocol except icmp6 (but allow ICMP6 echo requests)
  */
 #define FILTER_TMPL "(" \
-                     "ip6 " \
+                     "inbound " \
+                     "and ip6 " \
                      "and dst net %s/%hu " \
                      "and not src net %s/%hu " \
                      "and (not icmp6 or (icmp6 and ip6[40]=128))" \
