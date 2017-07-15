@@ -142,7 +142,7 @@ void gen_response(const struct in6_addr *target_addr,
 	char ts[TS_MAX+1];
 	strftime(ts, TS_MAX, "%Y-%m-%d %H:%M:%S", tm_info);
 
-	printf("%s Sending response to '%s' from '%s' (target: '%s')\n", ts, dst, router, target);
+	printf("%s '%s' -> '%s' (HL % 3d): %02x\n", ts, dst, target, hl, ((uint8_t*)&router_addr)[15]);
 	libnet_write(net_h);
 	libnet_clear_packet(net_h);
 }
