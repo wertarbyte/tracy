@@ -248,6 +248,10 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Couldn't parse network: %s\n", subnet);
 		exit(EXIT_FAILURE);
 	}
+	if (sink_addr_len > (128-8)) {
+		fprintf(stderr, "Network prefix too large: /%u\n", sink_addr_len);
+		exit(EXIT_FAILURE);
+	}
 
 	net_h = libnet_init(LIBNET_RAW6, NULL, &errmsg[0]);
 
